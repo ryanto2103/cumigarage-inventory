@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#0f0e17">
+    <title>Scanner Stok — ToyVault</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg:      #0f0e17;
+            --surface: #1a1927;
+            --card:    #201e30;
+            --border:  #2d2b45;
+            --accent:  #ff6b35;
+            --teal:    #06d6a0;
+            --red:     #ef4565;
+            --yellow:  #ffd166;
+            --muted:   #a7a5c0;
+            --text:    #fffffe;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%; width: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* ── Top bar ── */
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            height: 56px;
+            display: flex; align-items: center; padding: 0 16px; gap: 12px;
+        }
+        .topbar-back {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--card); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            text-decoration: none; font-size: 1.1rem; flex-shrink: 0;
+        }
+        .topbar-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem; font-weight: 700;
+        }
+        .topbar-history {
+            margin-left: auto;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 12px;
+            font-size: 0.78rem; color: var(--muted);
+            text-decoration: none;
+        }
+        .topbar-history:hover { color: var(--accent); border-color: var(--accent); }
+
+        /* ── Mode toggle ── */
+        .mode-bar {
+            position: fixed; top: 56px; left: 0; right: 0; z-index: 90;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex; padding: 10px 16px; gap: 10px;
+        }
+        .mode-btn {
+            flex: 1; padding: 10px;
+            border-radius: 10px;
+            border: 2px solid var(--border);
+            background: var(--card);
+            color: var(--muted); font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .mode-btn.in.active  { border-color: var(--teal); background: rgba(6,214,160,.12); color: var(--teal); }
+        .mode-btn.out.active { border-color: var(--red);  background: rgba(239,69,101,.12); color: var(--red); }
+        .mode-btn:not(.active):hover { border-color: var(--muted); color: var(--text); }
+
+        /* ── Main content ── */
+        .main { padding: 132px 0 120px; }
+
+        /* ── Camera section ── */
+        .camera-section {
+            padding: 0 16px 16px;
+        }
+        .camera-wrap {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border);
+            aspect-ratio: 4/3;
+            max-height: 260px;
+        }
+        #camera-video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .scan-overlay {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .scan-frame {
+            width: 200px; height: 80px;
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+            position: relative;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
+        }
+        .scan-frame::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: var(--accent);
+            animation: scanline 2s ease-in-out infinite;
+        }
+        @keyframes scanline {
+            0%   { top: 0; opacity: 1; }
+            50%  { top: calc(100% - 2px); opacity: 1; }
+            100% { top: 0; opacity: 1; }
+        }
+        .scan-corner {
+            position: absolute;
+            width: 14px; height: 14px;
+        }
+        .scan-corner.tl { top: -2px; left: -2px; border-top: 3px solid var(--accent); border-left: 3px solid var(--accent); }
+        .scan-corner.tr { top: -2px; right: -2px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); }
+        .scan-corner.bl { bottom: -2px; left: -2px; border-bottom: 3px solid var(--accent); border-left: 3px solid var(--accent); }
+        .scan-corner.br { bottom: -2px; right: -2px; border-bottom: 3px solid var(--accent); border-right: 3px solid var(--accent); }
+
+        .camera-status {
+            position: absolute; bottom: 8px; left: 0; right: 0;
+            text-align: center; font-size: 0.72rem; color: rgba(255,255,255,0.7);
+        }
+        .cam-off-placeholder {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 8px;
+            color: var(--muted); font-size: 0.85rem;
+        }
+        .cam-off-placeholder .icon { font-size: 2.5rem; }
+
+        /* Camera controls */
+        .camera-controls {
+            display: flex; gap: 8px; margin-top: 10px;
+        }
+        .cam-btn {
+            flex: 1; padding: 10px;
+            border-radius: 10px; border: 1px solid var(--border);
+            background: var(--card); color: var(--text);
+            font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: all 0.15s;
+        }
+        .cam-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+        .cam-btn:hover:not(.primary) { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Manual input ── */
+        .manual-section { padding: 0 16px 16px; }
+        .section-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+        .manual-row { display: flex; gap: 8px; }
+        .manual-input {
+            flex: 1; background: var(--card);
+            border: 1.5px solid var(--border);
+            border-radius: 10px; padding: 12px 14px;
+            color: var(--text); font-family: 'DM Sans', monospace;
+            font-size: 1rem; transition: border-color 0.15s;
+        }
+        .manual-input:focus { outline: none; border-color: var(--accent); }
+        .manual-input::placeholder { color: var(--muted); font-size: 0.85rem; }
+        .search-btn {
+            padding: 12px 16px;
+            background: var(--accent); color: white;
+            border: none; border-radius: 10px;
+            font-size: 1.1rem; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .search-btn:hover { background: #ff8155; }
+
+        /* ── Result card ── */
+        .result-section { padding: 0 16px 16px; }
+        .result-card {
+            background: var(--card); border: 1.5px solid var(--border);
+            border-radius: 14px; overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .result-card.in-mode  { border-color: var(--teal); }
+        .result-card.out-mode { border-color: var(--red); }
+
+        .result-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex; gap: 12px; align-items: center;
+        }
+        .result-img {
+            width: 56px; height: 56px; border-radius: 10px;
+            object-fit: cover; background: var(--surface);
+            border: 1px solid var(--border); flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; overflow: hidden;
+        }
+        .result-img img { width: 100%; height: 100%; object-fit: cover; }
+        .result-name { font-weight: 600; font-size: 1rem; line-height: 1.3; }
+        .result-meta { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+        .result-stock {
+            margin-left: auto; text-align: right; flex-shrink: 0;
+        }
+        .stock-num { font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 800; line-height: 1; }
+        .stock-label { font-size: 0.7rem; color: var(--muted); }
+        .stock-low { color: var(--red); }
+        .stock-ok  { color: var(--teal); }
+
+        .result-body { padding: 14px 16px; }
+        .qty-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .qty-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .qty-dec, .qty-inc {
+            width: 44px; height: 44px;
+            border-radius: 10px; border: 1.5px solid var(--border);
+            background: var(--surface); color: var(--text);
+            font-size: 1.4rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.12s; flex-shrink: 0;
+        }
+        .qty-dec:hover { border-color: var(--red); color: var(--red); }
+        .qty-inc:hover { border-color: var(--teal); color: var(--teal); }
+        .qty-input {
+            flex: 1; text-align: center;
+            background: var(--surface); border: 1.5px solid var(--border);
+            border-radius: 10px; padding: 10px;
+            color: var(--text); font-family: 'Syne', sans-serif;
+            font-size: 1.6rem; font-weight: 700;
+        }
+        .qty-input:focus { outline: none; border-color: var(--accent); }
+        .note-input {
+            width: 100%; background: var(--surface);
+            border: 1.5px solid var(--border); border-radius: 10px;
+            padding: 10px 12px; color: var(--text);
+            font-family: 'DM Sans', sans-serif; font-size: 0.875rem;
+            margin-bottom: 14px; resize: none;
+        }
+        .note-input:focus { outline: none; border-color: var(--accent); }
+        .note-input::placeholder { color: var(--muted); }
+        .submit-btn {
+            width: 100%; padding: 14px;
+            border-radius: 12px; border: none;
+            font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700;
+            cursor: pointer; transition: all 0.15s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .submit-btn.in  { background: var(--teal); color: #0f1a16; }
+        .submit-btn.out { background: var(--red);  color: white; }
+        .submit-btn:active { transform: scale(0.98); }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── Empty state ── */
+        .empty-state {
+            padding: 32px 16px;
+            text-align: center; color: var(--muted);
+        }
+        .empty-icon { font-size: 3rem; margin-bottom: 10px; }
+        .empty-text { font-size: 0.9rem; line-height: 1.6; }
+
+        /* ── Toast notification ── */
+        .toast-wrap {
+            position: fixed; bottom: 24px; left: 16px; right: 16px; z-index: 999;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .toast {
+            padding: 14px 16px; border-radius: 12px;
+            font-size: 0.875rem; font-weight: 500;
+            display: flex; align-items: center; gap: 10px;
+            animation: slideUp 0.25s ease; pointer-events: auto;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .toast.success { background: rgba(6,214,160,0.15); border: 1px solid var(--teal); color: var(--teal); }
+        .toast.error   { background: rgba(239,69,101,0.15); border: 1px solid var(--red);  color: var(--red);  }
+        .toast.info    { background: rgba(255,107,53,0.15); border: 1px solid var(--accent); color: var(--accent); }
+        .toast-msg { flex: 1; }
+        .toast-close { cursor: pointer; opacity: 0.7; font-size: 1.1rem; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* ── Recent transactions (mini list in scanner page) ── */
+        .recent-section { padding: 0 16px 32px; }
+        .recent-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 0; border-bottom: 1px solid var(--border);
+        }
+        .recent-icon {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; flex-shrink: 0;
+        }
+        .recent-icon.in  { background: rgba(6,214,160,.15); }
+        .recent-icon.out { background: rgba(239,69,101,.15); }
+        .recent-name { font-size: 0.85rem; font-weight: 500; }
+        .recent-meta { font-size: 0.75rem; color: var(--muted); }
+        .recent-qty { margin-left: auto; font-weight: 700; font-size: 0.9rem; }
+        .recent-qty.in  { color: var(--teal); }
+        .recent-qty.out { color: var(--red); }
+
+        /* ── Loading spinner ── */
+        .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 0.7s linear infinite; display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Beep animation on scan ── */
+        .camera-wrap.scanned { animation: flashGreen 0.4s ease; }
+        @keyframes flashGreen { 0%, 100% { border-color: var(--border); } 50% { border-color: var(--teal); box-shadow: 0 0 20px rgba(6,214,160,0.4); } }
+    </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+    <a href="{{ route('dashboard') }}" class="topbar-back">←</a>
+    <div class="topbar-title">📦 Scanner Stok</div>
+    <a href="{{ route('stock.history') }}" class="topbar-history">📋 Riwayat</a>
+</div>
+
+<!-- Mode toggle -->
+<div class="mode-bar">
+    <button class="mode-btn in active" id="btn-in" onclick="setMode('in')">
+        📥 Stok Masuk
+    </button>
+    <button class="mode-btn out" id="btn-out" onclick="setMode('out')">
+        📤 Stok Keluar
+    </button>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+    <!-- Camera -->
+    <div class="camera-section">
+        <div class="section-label">Scan Barcode</div>
+        <div class="camera-wrap" id="camera-wrap">
+            <div class="cam-off-placeholder" id="cam-placeholder">
+                <div class="icon">📷</div>
+                <div id="cam-engine-info">Tekan "Buka Kamera" untuk mulai scan</div>
+            </div>
+            <video id="camera-video" autoplay playsinline style="display:none"></video>
+            <div class="scan-overlay" id="scan-overlay" style="display:none">
+                <div class="scan-frame">
+                    <div class="scan-corner tl"></div>
+                    <div class="scan-corner tr"></div>
+                    <div class="scan-corner bl"></div>
+                    <div class="scan-corner br"></div>
+                </div>
+            </div>
+            <div class="camera-status" id="cam-status"></div>
+        </div>
+        <div class="camera-controls">
+            <button class="cam-btn primary" id="cam-toggle-btn" onclick="toggleCamera()">📷 Buka Kamera</button>
+            <button class="cam-btn" id="cam-flip-btn" onclick="flipCamera()" style="display:none;flex:0;padding:10px 14px">🔄</button>
+            <button class="cam-btn" onclick="toggleFlash()" id="flash-btn" style="display:none;flex:0;padding:10px 14px">🔦</button>
+        </div>
+    </div>
+
+    <!-- Manual input -->
+    <div class="manual-section">
+        <div class="section-label">Atau Ketik Manual</div>
+        <div class="manual-row">
+            <input type="text" class="manual-input" id="manual-barcode"
+                placeholder="Ketik barcode / SKU..."
+                inputmode="text" autocomplete="off" autocorrect="off"
+                onkeydown="if(event.key==='Enter') searchBarcode()">
+            <button class="search-btn" onclick="searchBarcode()">🔍</button>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-section">
+        <div id="result-empty" class="empty-state">
+            <div class="empty-icon">🧸</div>
+            <div class="empty-text">Scan barcode atau ketik SKU<br>untuk mencari mainan</div>
+        </div>
+
+        <div id="result-card" class="result-card in-mode" style="display:none">
+            <div class="result-header">
+                <div class="result-img" id="result-img">🧸</div>
+                <div style="flex:1;min-width:0">
+                    <div class="result-name" id="result-name">—</div>
+                    <div class="result-meta" id="result-meta">—</div>
+                </div>
+                <div class="result-stock">
+                    <div class="stock-num stock-ok" id="result-stock-num">—</div>
+                    <div class="stock-label">stok</div>
+                </div>
+            </div>
+            <div class="result-body">
+                <div class="qty-label">
+                    <span>Jumlah</span>
+                    <span id="qty-hint"></span>
+                </div>
+                <div class="qty-row">
+                    <button class="qty-dec" onclick="adjustQty(-1)">−</button>
+                    <input type="number" class="qty-input" id="qty-input" value="1" min="1" max="9999">
+                    <button class="qty-inc" onclick="adjustQty(1)">+</button>
+                </div>
+                <textarea class="note-input" id="note-input" rows="2" placeholder="Catatan (opsional)..."></textarea>
+                <button class="submit-btn in" id="submit-btn" onclick="submitStock()">
+                    <span id="submit-spinner" class="spinner"></span>
+                    <span id="submit-label">📥 Konfirmasi Stok Masuk</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <div class="recent-section">
+        <div class="section-label">Transaksi Terakhir</div>
+        <div id="recent-list">
+            <div class="empty-state" style="padding:20px 0">
+                <div style="font-size:0.82rem;color:var(--muted)">Belum ada transaksi</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+const CSRF  = document.querySelector('meta[name="csrf-token"]').content;
+const FIND_URL    = '{{ route("stock.find") }}';
+const PROCESS_URL = '{{ route("stock.process") }}';
+
+let currentMode   = 'in';
+let currentToy    = null;
+let cameraActive  = false;
+let useFrontCam   = false;
+let videoStream   = null;
+let scanLoopId    = null;
+let barcodeDetector = null;
+let recentItems   = [];
+
+// ── Detect best available scan engine ─────────────────────────────────────
+function getScanEngine() {
+    // 1. Native BarcodeDetector (Chrome 83+, Android, Samsung Browser)
+    if ('BarcodeDetector' in window) return 'native';
+    // 2. Canvas + manual pixel decode fallback (always available)
+    return 'canvas';
+}
+
+// ── Mode ──────────────────────────────────────────────────────────────────
+function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('btn-in').classList.toggle('active', mode === 'in');
+    document.getElementById('btn-out').classList.toggle('active', mode === 'out');
+    const card = document.getElementById('result-card');
+    card.className = 'result-card ' + mode + '-mode';
+    const btn = document.getElementById('submit-btn');
+    btn.className = 'submit-btn ' + mode;
+    if (currentToy) updateSubmitLabel();
+}
+
+function updateSubmitLabel() {
+    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+    const label = document.getElementById('submit-label');
+    if (currentMode === 'in') {
+        label.textContent = `📥 Tambah ${qty} pcs Stok Masuk`;
+    } else {
+        label.textContent = `📤 Keluarkan ${qty} pcs Stok`;
+    }
+    const hint = document.getElementById('qty-hint');
+    if (currentMode === 'out' && currentToy) {
+        hint.textContent = `Maks: ${currentToy.stock} pcs`;
+        hint.style.color = 'var(--red)';
+    } else {
+        hint.textContent = '';
+    }
+}
+
+// ── Camera ────────────────────────────────────────────────────────────────
+async function toggleCamera() {
+    if (cameraActive) { stopCamera(); } else { startCamera(); }
+}
+
+async function startCamera() {
+    const btn = document.getElementById('cam-toggle-btn');
+    btn.textContent = '⏳ Membuka...';
+    btn.disabled = true;
+
+    try {
+        const constraints = {
+            video: {
+                facingMode: useFrontCam ? 'user' : { ideal: 'environment' },
+                width:  { ideal: 1280 },
+                height: { ideal: 720 },
+            }
+        };
+
+        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        const video = document.getElementById('camera-video');
+        video.srcObject = videoStream;
+        await video.play();
+
+        document.getElementById('cam-placeholder').style.display = 'none';
+        video.style.display = 'block';
+        document.getElementById('scan-overlay').style.display = 'flex';
+
+        cameraActive = true;
+        btn.textContent = '⏹ Tutup Kamera';
+        btn.className = 'cam-btn';
+        btn.disabled = false;
+        document.getElementById('cam-flip-btn').style.display = 'flex';
+
+        // Show flash button if supported
+        const track = videoStream.getVideoTracks()[0];
+        const caps  = track.getCapabilities?.() || {};
+        document.getElementById('flash-btn').style.display = caps.torch ? 'flex' : 'none';
+
+        const engine = getScanEngine();
+        if (engine === 'native') {
+            document.getElementById('cam-status').textContent = '✅ Kamera aktif — Arahkan ke barcode';
+            startNativeScan(video);
+        } else {
+            document.getElementById('cam-status').textContent = '✅ Kamera aktif — Gunakan input manual atau scan HP Anda';
+            startCanvasScan(video);
+        }
+
+    } catch (e) {
+        stopCamera();
+        let msg = 'Gagal membuka kamera.';
+        if (e.name === 'NotAllowedError')  msg = 'Izin kamera ditolak. Aktifkan izin kamera di browser.';
+        if (e.name === 'NotFoundError')    msg = 'Tidak ada kamera ditemukan di perangkat ini.';
+        if (e.name === 'NotReadableError') msg = 'Kamera sedang digunakan aplikasi lain.';
+        showToast('error', '❌ ' + msg);
+        btn.textContent = '📷 Buka Kamera';
+        btn.className = 'cam-btn primary';
+        btn.disabled = false;
+    }
+}
+
+// ── Native BarcodeDetector scan loop ─────────────────────────────────────
+async function startNativeScan(video) {
+    try {
+        barcodeDetector = new BarcodeDetector({
+            formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code', 'data_matrix']
+        });
+    } catch(e) {
+        barcodeDetector = new BarcodeDetector();
+    }
+
+    async function loop() {
+        if (!cameraActive) return;
+        try {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    onBarcodeScanned(barcodes[0].rawValue);
+                }
+            }
+        } catch(e) {}
+        scanLoopId = setTimeout(loop, 250);
+    }
+    loop();
+}
+
+// ── Canvas-based scan loop (fallback: reads pixel rows for simple barcodes) ─
+// Untuk fallback ini kita pakai interval + tampilkan petunjuk manual
+function startCanvasScan(video) {
+    // Untuk browser yang tidak support BarcodeDetector,
+    // tampilkan instruksi dan biarkan user input manual
+    document.getElementById('cam-status').textContent =
+        'Browser Anda tidak mendukung scan otomatis. Gunakan input manual di bawah.';
+    showToast('info', '💡 Gunakan kolom manual di bawah untuk input barcode', 5000);
+}
+
+function stopCamera() {
+    if (scanLoopId) { clearTimeout(scanLoopId); scanLoopId = null; }
+    if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
+        videoStream = null;
+    }
+    barcodeDetector = null;
+
+    const video = document.getElementById('camera-video');
+    video.srcObject = null;
+    video.style.display = 'none';
+    document.getElementById('cam-placeholder').style.display = 'flex';
+    document.getElementById('scan-overlay').style.display = 'none';
+    document.getElementById('cam-flip-btn').style.display = 'none';
+    document.getElementById('flash-btn').style.display = 'none';
+    document.getElementById('cam-status').textContent = '';
+
+    cameraActive = false;
+    const btn = document.getElementById('cam-toggle-btn');
+    btn.textContent = '📷 Buka Kamera';
+    btn.className = 'cam-btn primary';
+    btn.disabled = false;
+}
+
+function flipCamera() {
+    useFrontCam = !useFrontCam;
+    stopCamera();
+    setTimeout(startCamera, 300);
+}
+
+async function toggleFlash() {
+    if (!videoStream) return;
+    const track = videoStream.getVideoTracks()[0];
+    try {
+        const caps     = track.getCapabilities?.() || {};
+        if (!caps.torch) { showToast('info', 'Flash tidak didukung di perangkat ini'); return; }
+        const settings = track.getSettings();
+        await track.applyConstraints({ advanced: [{ torch: !settings.torch }] });
+        document.getElementById('flash-btn').textContent = settings.torch ? '🔦' : '💡';
+    } catch (e) { showToast('info', 'Gagal mengaktifkan flash'); }
+}
+
+// ── Scan result ───────────────────────────────────────────────────────────
+let lastScanned  = '';
+let scanCooldown = false;
+
+function onBarcodeScanned(barcode) {
+    if (scanCooldown || barcode === lastScanned) return;
+    lastScanned  = barcode;
+    scanCooldown = true;
+
+    const wrap = document.getElementById('camera-wrap');
+    wrap.classList.add('scanned');
+    setTimeout(() => wrap.classList.remove('scanned'), 400);
+
+    playBeep();
+
+    document.getElementById('manual-barcode').value = barcode;
+    fetchToy(barcode);
+
+    setTimeout(() => { scanCooldown = false; }, 2500);
+}
+
+function playBeep() {
+    try {
+        const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.12);
+    } catch(e) {}
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
+function searchBarcode() {
+    const val = document.getElementById('manual-barcode').value.trim();
+    if (!val) { showToast('error', 'Masukkan barcode atau SKU terlebih dahulu'); return; }
+    fetchToy(val);
+}
+
+async function fetchToy(barcode) {
+    document.getElementById('cam-status').textContent = '🔍 Mencari...';
+    try {
+        const res  = await fetch(FIND_URL + '?barcode=' + encodeURIComponent(barcode), {
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!data.found) {
+            showToast('error', '❌ ' + data.message);
+            document.getElementById('cam-status').textContent = 'Arahkan kamera ke barcode mainan';
+            return;
+        }
+
+        currentToy = data.toy;
+        renderResultCard(data.toy);
+        document.getElementById('cam-status').textContent = '✅ Ditemukan! Isi jumlah & konfirmasi.';
+        showToast('info', '🧸 ' + data.toy.name + ' ditemukan!');
+
+    } catch(e) {
+        showToast('error', '❌ Gagal menghubungi server');
+    }
+}
+
+function renderResultCard(toy) {
+    document.getElementById('result-empty').style.display = 'none';
+    const card = document.getElementById('result-card');
+    card.style.display = 'block';
+
+    // Image
+    const imgEl = document.getElementById('result-img');
+    if (toy.image_url) {
+        imgEl.innerHTML = `<img src="${toy.image_url}" alt="">`;
+    } else {
+        imgEl.innerHTML = '🧸';
+    }
+
+    document.getElementById('result-name').textContent = toy.name;
+    document.getElementById('result-meta').textContent =
+        [toy.brand, toy.category, toy.sku].filter(Boolean).join(' · ');
+
+    const stockEl = document.getElementById('result-stock-num');
+    stockEl.textContent = toy.stock;
+    stockEl.className = 'stock-num ' + (toy.is_low_stock ? 'stock-low' : 'stock-ok');
+
+    document.getElementById('qty-input').value = 1;
+    document.getElementById('note-input').value = '';
+    updateSubmitLabel();
+
+    // Scroll to card
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Qty control ───────────────────────────────────────────────────────────
+function adjustQty(delta) {
+    const input = document.getElementById('qty-input');
+    let val = parseInt(input.value) || 1;
+    val = Math.max(1, val + delta);
+    if (currentMode === 'out' && currentToy && val > currentToy.stock) val = currentToy.stock;
+    input.value = val;
+    updateSubmitLabel();
+}
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('qty-input').addEventListener('input', updateSubmitLabel);
+});
+
+// ── Submit ────────────────────────────────────────────────────────────────
+async function submitStock() {
+    if (!currentToy) { showToast('error', 'Belum ada mainan dipilih'); return; }
+
+    const qty  = parseInt(document.getElementById('qty-input').value) || 0;
+    const note = document.getElementById('note-input').value.trim();
+
+    if (qty < 1) { showToast('error', 'Jumlah harus minimal 1'); return; }
+    if (currentMode === 'out' && qty > currentToy.stock) {
+        showToast('error', `Stok tidak cukup! Tersedia: ${currentToy.stock} pcs`); return;
+    }
+
+    const btn     = document.getElementById('submit-btn');
+    const spinner = document.getElementById('submit-spinner');
+    const label   = document.getElementById('submit-label');
+    btn.disabled  = true;
+    spinner.style.display = 'block';
+    label.textContent = 'Memproses...';
+
+    try {
+        const res  = await fetch(PROCESS_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ toy_id: currentToy.id, type: currentMode, qty, note }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('success', data.message);
+            // Update stock display
+            currentToy.stock = data.toy.stock;
+            currentToy.is_low_stock = data.toy.is_low_stock;
+            const stockEl = document.getElementById('result-stock-num');
+            stockEl.textContent = data.toy.stock;
+            stockEl.className = 'stock-num ' + (data.toy.is_low_stock ? 'stock-low' : 'stock-ok');
+
+            // Add to recent list
+            addRecentItem({
+                type: currentMode,
+                name: currentToy.name,
+                qty,
+                time: new Date(),
+            });
+
+            // Reset qty
+            document.getElementById('qty-input').value = 1;
+            document.getElementById('note-input').value = '';
+            lastScanned = ''; // allow re-scan same item
+        } else {
+            showToast('error', '❌ ' + data.message);
+        }
+    } catch(e) {
+        showToast('error', '❌ Gagal menghubungi server. Cek koneksi.');
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        updateSubmitLabel();
+    }
+}
+
+// ── Recent list ───────────────────────────────────────────────────────────
+function addRecentItem(item) {
+    recentItems.unshift(item);
+    if (recentItems.length > 10) recentItems.pop();
+    renderRecent();
+}
+
+function renderRecent() {
+    const list = document.getElementById('recent-list');
+    if (!recentItems.length) {
+        list.innerHTML = '<div style="font-size:0.82rem;color:var(--muted);padding:12px 0">Belum ada transaksi</div>';
+        return;
+    }
+    list.innerHTML = recentItems.map(item => `
+        <div class="recent-item">
+            <div class="recent-icon ${item.type}">${item.type === 'in' ? '📥' : '📤'}</div>
+            <div>
+                <div class="recent-name">${item.name}</div>
+                <div class="recent-meta">${formatTime(item.time)}</div>
+            </div>
+            <div class="recent-qty ${item.type}">${item.type === 'in' ? '+' : '-'}${item.qty} pcs</div>
+        </div>
+    `).join('');
+}
+
+function formatTime(date) {
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function showToast(type, msg, duration = 3500) {
+    const wrap = document.getElementById('toast-wrap');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span class="toast-msg">${msg}</span><span class="toast-close" onclick="this.parentElement.remove()">×</span>`;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), duration);
+}
+
+// ── Keyboard shortcut: Enter submits when card is shown ───────────────────
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && currentToy && document.activeElement !== document.getElementById('note-input')) {
+        e.preventDefault();
+        submitStock();
+    }
+});
+
+// ── On load: detect scan engine & show info ───────────────────────────────
+window.addEventListener('load', () => {
+    const engine = getScanEngine();
+    const infoEl = document.getElementById('cam-engine-info');
+    if (engine === 'native') {
+        infoEl.innerHTML = 'Tekan "Buka Kamera" untuk scan otomatis<br><span style="font-size:0.72rem;color:var(--teal)">✅ Scan otomatis didukung</span>';
+    } else {
+        infoEl.innerHTML = 'Tekan "Buka Kamera" untuk pratinjau kamera<br><span style="font-size:0.72rem;color:var(--yellow)">⚠️ Gunakan input manual atau scanner eksternal</span>';
+    }
+});
+</script>
+</body>
+</html>

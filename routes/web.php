@@ -1,0 +1,49 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ToyController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\StockController;
+
+// ── Auth routes (guest only) ──────────────────────────────────────────────
+Route::middleware('guest')->group(function () {
+    Route::get('/login',  [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+});
+
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// ── Authenticated routes ──────────────────────────────────────────────────
+Route::middleware('auth')->group(function () {
+
+    Route::get('/', [ToyController::class, 'dashboard'])->name('dashboard');
+
+    // Profile
+    Route::get('/profile', [AuthController::class, 'profile'])->name('profile');
+    Route::put('/profile', [AuthController::class, 'updateProfile'])->name('profile.update');
+
+    // Toys
+    Route::resource('toys', ToyController::class);
+    Route::get('toys/{toy}/barcode',  [ToyController::class,  'barcode'])->name('toys.barcode');
+    // Stock Scanner (mobile)
+    Route::get('/scanner',                         [StockController::class, 'scanner'])->name('stock.scanner');
+    Route::get('/scanner/find',                    [StockController::class, 'findByBarcode'])->name('stock.find');
+    Route::post('/scanner/process',                [StockController::class, 'process'])->name('stock.process');
+    Route::get('/scanner/history',                 [StockController::class, 'history'])->name('stock.history');
+    Route::post('toys/{toy}/stock',                [StockController::class, 'adjust'])->name('toys.stock.adjust');
+
+    // Categories
+    Route::resource('categories', CategoryController::class)->except(['show', 'create', 'edit']);
+
+    // Reports
+    Route::get('/reports',            [ReportController::class, 'summary'])->name('reports.summary');
+    Route::get('/reports/export-csv', [ReportController::class, 'exportCsv'])->name('reports.export');
+
+    // Users (admin only - enforced in controller)
+    Route::resource('users', UserController::class)->except(['show']);
+    Route::post('users/{user}/restore',        [UserController::class, 'restore'])->name('users.restore');
+    Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+});

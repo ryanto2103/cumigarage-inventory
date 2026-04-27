@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Toy;
+use App\Models\StockLog;
+use Illuminate\Http\Request;
+
+class StockController extends Controller
+{
+    /**
+     * Tambah atau kurangi stok dengan catatan
+     */
+    public function adjust(Request $request, Toy $toy)
+    {
+        $validated = $request->validate([
+            'type'   => 'required|in:in,out,adjust',
+            'qty'    => 'required|integer|min:1',
+            'note'   => 'nullable|string|max:255',
+        ]);
+
+        $before = $toy->stock;
+
+        switch ($validated['type']) {
+            case 'in':
+                $toy->increment('stock', $validated['qty']);
+                break;
+            case 'out':
+                if ($toy->stock < $validated['qty']) {
+                    return back()->with('error', 'Stok tidak mencukupi!');
+                }
+                $toy->decrement('stock', $validated['qty']);
+                break;
+            case 'adjust':
+                $toy->update(['stock' => $validated['qty']]);
+                break;
+        }
+
+        // Log if StockLog model exists
+        if (class_exists(StockLog::class)) {
+            StockLog::create([
+                'toy_id'  => $toy->id,
+                'type'    => $validated['type'],
+                'qty'     => $validated['qty'],
+                'before'  => $before,
+                'after'   => $toy->fresh()->stock,
+                'note'    => $validated['note'],
+            ]);
+        }
+
+        $typeLabel = ['in' => 'masuk', 'out' => 'keluar', 'adjust' => 'disesuaikan'];
+        return back()->with('success', "Stok {$toy->name} berhasil {$typeLabel[$validated['type']]}.");
+    }
+}

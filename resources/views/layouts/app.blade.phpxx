@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>@yield('title', 'CumiGarage') — Inventory Mainan</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+
+    <!-- JsBarcode for rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+
+    <style>
+        :root {
+            --c-bg:       #0f0e17;
+            --c-surface:  #1a1927;
+            --c-border:   #2d2b45;
+            --c-accent:   #ff6b35;
+            --c-accent2:  #ffd166;
+            --c-teal:     #06d6a0;
+            --c-red:      #ef4565;
+            --c-text:     #fffffe;
+            --c-muted:    #a7a5c0;
+            --c-card:     #201e30;
+            --radius:     12px;
+            --font-head:  'Syne', sans-serif;
+            --font-body:  'DM Sans', sans-serif;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: var(--font-body);
+            background: var(--c-bg);
+            color: var(--c-text);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* ---- Sidebar ---- */
+        .sidebar {
+            width: 240px;
+            min-height: 100vh;
+            background: var(--c-surface);
+            border-right: 1px solid var(--c-border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            z-index: 100;
+        }
+        .sidebar-logo {
+            padding: 28px 24px 20px;
+            border-bottom: 1px solid var(--c-border);
+        }
+        .logo-mark {
+            font-family: var(--font-head);
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--c-accent);
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logo-mark span { color: var(--c-text); }
+        .logo-sub { font-size: 0.72rem; color: var(--c-muted); margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
+        .nav-section { padding: 20px 12px 8px; }
+        .nav-label { font-size: 0.65rem; color: var(--c-muted); text-transform: uppercase; letter-spacing: 2px; padding: 0 12px 8px; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--c-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255,107,53,0.12);
+            color: var(--c-accent);
+        }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .sidebar-bottom {
+            margin-top: auto;
+            border-top: 1px solid var(--c-border);
+        }
+        .user-card {
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255,107,53,0.15);
+            border: 1px solid rgba(255,107,53,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--c-accent);
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .user-name { font-size: 0.82rem; font-weight: 600; color: var(--c-text); line-height: 1.2; }
+        .user-role { font-size: 0.7rem; color: var(--c-muted); }
+        .sidebar-footer-links {
+            padding: 8px 12px 14px;
+            display: flex;
+            gap: 6px;
+        }
+        .sidebar-link {
+            flex: 1;
+            padding: 7px 10px;
+            border-radius: 7px;
+            font-size: 0.75rem;
+            color: var(--c-muted);
+            text-decoration: none;
+            text-align: center;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .sidebar-link:hover { color: var(--c-accent); border-color: var(--c-accent); }
+        .sidebar-link.danger:hover { color: var(--c-red); border-color: var(--c-red); }
+
+        /* ---- Main ---- */
+        .main-wrap {
+            margin-left: 240px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .topbar {
+            height: 64px;
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            padding: 0 32px;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .topbar-title {
+            font-family: var(--font-head);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .topbar-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+        .content { padding: 32px; flex: 1; }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+        .btn-primary { background: var(--c-accent); color: #fff; }
+        .btn-primary:hover { background: #ff8155; }
+        .btn-secondary { background: var(--c-card); color: var(--c-text); border: 1px solid var(--c-border); }
+        .btn-secondary:hover { border-color: var(--c-accent); color: var(--c-accent); }
+        .btn-danger { background: rgba(239,69,101,0.15); color: var(--c-red); border: 1px solid rgba(239,69,101,0.3); }
+        .btn-danger:hover { background: rgba(239,69,101,0.25); }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn svg { width: 16px; height: 16px; }
+
+        /* ---- Cards ---- */
+        .card {
+            background: var(--c-card);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            padding: 24px;
+        }
+        .stat-card {
+            background: var(--c-card);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .stat-card.orange::before { background: var(--c-accent); }
+        .stat-card.yellow::before { background: var(--c-accent2); }
+        .stat-card.teal::before   { background: var(--c-teal); }
+        .stat-card.red::before    { background: var(--c-red); }
+        .stat-label { font-size: 0.75rem; color: var(--c-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .stat-value { font-family: var(--font-head); font-size: 1.8rem; font-weight: 800; line-height: 1; }
+        .stat-sub { font-size: 0.78rem; color: var(--c-muted); margin-top: 6px; }
+
+        /* ---- Forms ---- */
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 0.82rem; font-weight: 500; color: var(--c-muted); margin-bottom: 6px; }
+        .form-control {
+            width: 100%;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--c-text);
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            transition: border-color 0.15s;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--c-accent);
+            box-shadow: 0 0 0 3px rgba(255,107,53,0.15);
+        }
+        .form-control option { background: var(--c-surface); }
+        textarea.form-control { resize: vertical; min-height: 90px; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .form-error { font-size: 0.78rem; color: var(--c-red); margin-top: 4px; }
+
+        /* ---- Table ---- */
+        .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--c-border); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: rgba(255,255,255,0.04); padding: 12px 16px; text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: var(--c-muted); font-weight: 600; white-space: nowrap; }
+        td { padding: 14px 16px; border-top: 1px solid var(--c-border); font-size: 0.875rem; vertical-align: middle; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        /* ---- Badges ---- */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 99px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-new       { background: rgba(6,214,160,0.15);  color: var(--c-teal); }
+        .badge-like_new  { background: rgba(255,209,102,0.15); color: var(--c-accent2); }
+        .badge-good      { background: rgba(255,107,53,0.15);  color: var(--c-accent); }
+        .badge-fair      { background: rgba(239,69,101,0.15);  color: var(--c-red); }
+        .badge-low       { background: rgba(239,69,101,0.15);  color: var(--c-red); }
+        .badge-ok        { background: rgba(6,214,160,0.15);   color: var(--c-teal); }
+
+        /* ---- Toy Image ---- */
+        .toy-img {
+            width: 44px; height: 44px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            flex-shrink: 0;
+        }
+        .toy-img-placeholder {
+            width: 44px; height: 44px;
+            border-radius: 8px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        /* ---- Alerts ---- */
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 0.875rem; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .alert-success { background: rgba(6,214,160,0.1); border: 1px solid rgba(6,214,160,0.3); color: var(--c-teal); }
+        .alert-error   { background: rgba(239,69,101,0.1); border: 1px solid rgba(239,69,101,0.3); color: var(--c-red); }
+
+        /* ---- Pagination ---- */
+        .pagination { display: flex; gap: 6px; align-items: center; margin-top: 24px; }
+        .pagination a, .pagination span {
+            padding: 7px 13px;
+            border-radius: 7px;
+            font-size: 0.85rem;
+            text-decoration: none;
+            color: var(--c-muted);
+            background: var(--c-card);
+            border: 1px solid var(--c-border);
+            transition: all 0.15s;
+        }
+        .pagination a:hover { border-color: var(--c-accent); color: var(--c-accent); }
+        .pagination .active span, .pagination [aria-current="page"] span {
+            background: var(--c-accent);
+            color: white;
+            border-color: var(--c-accent);
+        }
+
+        /* ---- Image upload preview ---- */
+        .img-upload-area {
+            border: 2px dashed var(--c-border);
+            border-radius: 10px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .img-upload-area:hover { border-color: var(--c-accent); }
+        .img-upload-area input { display: none; }
+        .img-preview { max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 12px; display: none; }
+
+        /* ---- Grid layouts ---- */
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 900px)  { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+
+        /* ---- Misc ---- */
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .section-title { font-family: var(--font-head); font-size: 1.15rem; font-weight: 700; }
+        .text-muted { color: var(--c-muted); }
+        .text-accent { color: var(--c-accent); }
+        .text-teal   { color: var(--c-teal); }
+        .text-red    { color: var(--c-red); }
+        .text-yellow { color: var(--c-accent2); }
+        .mt-4  { margin-top: 16px; }
+        .mt-6  { margin-top: 24px; }
+        .mb-4  { margin-bottom: 16px; }
+        .gap-2 { gap: 8px; }
+        .flex  { display: flex; }
+        .items-center { align-items: center; }
+        .font-mono { font-family: 'Courier New', monospace; font-size: 0.8rem; }
+        .search-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+        .barcode-box { background: white; padding: 16px 20px; border-radius: 10px; display: inline-block; text-align: center; }
+        .barcode-label { font-family: monospace; font-size: 0.85rem; color: #333; margin-top: 6px; }
+    </style>
+    @stack('head')
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-mark">Cumi<span>Vault</span></div>
+            <div class="logo-sub">Inventory Mainan</div>
+        </div>
+        <nav class="nav-section">
+            <div class="nav-label">Menu</div>
+            <a href="{{ route('dashboard') }}" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                Dashboard
+            </a>
+            <a href="{{ route('toys.index') }}" class="nav-item {{ request()->routeIs('toys.*') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                Koleksi Mainan
+            </a>
+            <a href="{{ route('categories.index') }}" class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                Kategori
+            </a>
+            @if(auth()->user()?->isStaff())
+            <a href="{{ route('toys.create') }}" class="nav-item {{ request()->routeIs('toys.create') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Tambah Mainan
+            </a>
+            @endif
+            <a href="{{ route('reports.summary') }}" class="nav-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Laporan
+            </a>
+            @if(auth()->user()?->isAdmin())
+            <div class="nav-label" style="margin-top:8px">Admin</div>
+            <a href="{{ route('users.index') }}" class="nav-item {{ request()->routeIs('users.*') ? 'active' : '' }}">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                Pengguna
+            </a>
+            @endif
+        </nav>
+        <div class="sidebar-bottom">
+            @auth
+            <div class="user-card">
+                <div class="user-avatar">
+                    @if(auth()->user()->avatar_url)
+                        <img src="{{ auth()->user()->avatar_url }}" alt="">
+                    @else
+                        {{ auth()->user()->initials }}
+                    @endif
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div class="user-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ auth()->user()->name }}</div>
+                    <div class="user-role">{{ auth()->user()->role_label }}</div>
+                </div>
+            </div>
+            <div class="sidebar-footer-links">
+                <a href="{{ route('profile') }}" class="sidebar-link">👤 Profil</a>
+                <form method="POST" action="{{ route('logout') }}" style="flex:1">
+                    @csrf
+                    <button type="submit" class="sidebar-link danger" style="width:100%">🚪 Keluar</button>
+                </form>
+            </div>
+            @endauth
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main-wrap">
+        <header class="topbar">
+            <div class="topbar-title">@yield('topbar-title', 'Dashboard')</div>
+            <div class="topbar-actions">
+                @yield('topbar-actions')
+                <a href="{{ route('toys.create') }}" class="btn btn-primary">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Tambah
+                </a>
+            </div>
+        </header>
+
+        <main class="content">
+            @if(session('success'))
+                <div class="alert alert-success">✅ {{ session('success') }}</div>
+            @endif
+            @if(session('error'))
+                <div class="alert alert-error">❌ {{ session('error') }}</div>
+            @endif
+
+            @yield('content')
+        </main>
+    </div>
+
+    <script>
+        // Render all barcodes
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('[data-barcode]').forEach(el => {
+                const code = el.getAttribute('data-barcode');
+                if (!code) return;
+                try {
+                    JsBarcode(el, code, {
+                        format: "CODE128",
+                        width: 2, height: 50,
+                        displayValue: true,
+                        fontSize: 12,
+                        background: "#ffffff",
+                        lineColor: "#000000"
+                    });
+                } catch(e) {}
+            });
+        });
+    </script>
+    @stack('scripts')
+</body>
+</html>
